@@ -1,0 +1,52 @@
+Key stage 4 performance
+Academic year 2025/26
+
+This data covers the performance of pupils at the end of Key Stage 4 (KS4) in 2025/26. The data covers the main headline measures of:
+
+- Attainment 8
+- Percentage of pupils achieving 9-5 in English and maths
+
+It is not possible to calculate Progress 8 for academic years 2024/25 and 2025/26 due to gaps in the baseline caused by COVID-19 disruption.
+
+The data also covers numerous additional measures, depending on the data file.
+
+The publication methodology should be referenced alongside this data. It provides information on the data sources, their coverage and quality, as well as explaining methodology used in producing the data.
+
+Coverage
+
+This data covers the GCSE results of pupils at the end of Key Stage 4 (KS4) in 2025/26. The data is split by establishment type, as well as some data being split by pupil characteristics such as disadvantage status, free school meal status, special educational needs status and ethnicity. The data covers statistics at national, regional, local authority, local authority district, parliamentary constituency and institution level.
+
+File formats and conventions
+
+The data is rounded to either 1 or 2 decimal places, depending on which measure you are looking at. Some of the raw data totals go up to 3 decimal places. No suppression has been applied above school level.
+
+Discounted and Undiscounted
+
+In discounted subject data, where a pupil has more than one qualification in the same subject with the same discount code, only the qualification taken first counts. Undiscounted subject data counts all entries into the same subject by a pupil.
+
+Data files
+
+Key stage 4 institution level - Subject entries and grades (undiscounted)
+
+Filename: 202526_subject_school_all_exam_entriesgrades_provisional.csv
+Geographic levels: School
+Time period: 2025/26
+Content summary: Subject entries and grades achieved in schools and colleges in the performance tables data for 2025/26. Discounting is not applied.
+
+Variable names and descriptions for this file are provided below:
+
+Variable name           |  Variable description
+----------------------  |  ----------------------------------
+grade                   |  Grade
+number_achieving        |  Number of entries at grade
+pupil_count             |  Number of pupils at the end of KS4
+subject_discount_group  |  Subject
+
+Footnotes:
+
+1. Discounting has been applied. For further information please see the discounting guidance ( https://www.gov.uk/government/publications/key-stage-4-qualifications-discount-codes-and-point-scores (https://www.gov.uk/government/publications/key-stage-4-qualifications-discount-codes-and-point-scores)).
+2. Grade U refers to pupils' results which are ungraded or unclassified.
+3. Grade X refers to pupils who were absent or whose results are pending.
+4. Combined Science GCSE is a Double Award and is included in this table for the purpose of comparison with other Science subjects.
+5. Where subjects have been combined into a group (e.g. Other Modern Languages) and a pupil has two or more entries, each result in each subject is counted.
+6. Individual grade breakdowns are suppressed (not shown) where the total number of entries (per school/qualification/discount code/subject description) is 5 or fewer.

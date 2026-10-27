@@ -1,0 +1,1839 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="A local data lab for exploring Department for Education pupil and school performance CSV files.">
+  <title>DfE School Data Lab</title>
+  <style>
+    :root {
+      color-scheme: light;
+      --ink: #172b3a;
+      --muted: #5b6d7a;
+      --line: #d8e1e7;
+      --paper: #fff;
+      --canvas: #f2f6f8;
+      --teal: #087e83;
+      --teal-dark: #05666b;
+      --blue-soft: #e8f5f4;
+      --warn: #fff5d9;
+      --warn-line: #e8c66c;
+      --error: #fff0ee;
+      --error-line: #dc7869;
+      --shadow: 0 8px 24px rgb(25 52 68 / 7%);
+    }
+    * { box-sizing: border-box; }
+    body { margin: 0; background: var(--canvas); color: var(--ink); font: 15px/1.5 "Segoe UI", Arial, sans-serif; }
+    button, select, textarea { font: inherit; }
+    button { cursor: pointer; }
+    button:disabled { cursor: not-allowed; opacity: .55; }
+    .topbar { background: #123348; color: white; padding: 22px max(22px, calc((100vw - 1840px) / 2)); }
+    .topbar-inner { display: flex; align-items: center; justify-content: space-between; gap: 20px; max-width: 1840px; margin: auto; }
+    h1 { margin: 0; font-size: clamp(1.35rem, 2.2vw, 1.9rem); letter-spacing: -.02em; }
+    .subtitle { margin: 5px 0 0; color: #d1e1e9; }
+    .status { display: inline-flex; align-items: center; gap: 8px; border: 1px solid #648193; border-radius: 999px; padding: 7px 12px; color: #e7f3f7; white-space: nowrap; font-size: .9rem; }
+    .status::before { content: ""; width: 9px; height: 9px; border-radius: 50%; background: #e9c96a; }
+    .status.ready::before { background: #6bd3a7; }
+    main { max-width: 1840px; margin: auto; padding: 22px; }
+    .notice { margin-bottom: 18px; padding: 14px 16px; border: 1px solid var(--warn-line); border-radius: 10px; background: var(--warn); }
+    .notice.error { border-color: var(--error-line); background: var(--error); color: #71251b; }
+    .notice[hidden] { display: none; }
+    .notice p { margin: 3px 0; }
+    code, pre, textarea, .mono { font-family: Consolas, "Courier New", monospace; }
+    .command { display: inline-block; margin-top: 7px; padding: 8px 10px; border-radius: 6px; background: rgb(255 255 255 / 75%); }
+    .toolbar, .panel { border: 1px solid var(--line); border-radius: 12px; background: var(--paper); box-shadow: var(--shadow); }
+    .toolbar { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; margin-bottom: 18px; padding: 14px; }
+    .toolbar-copy { flex: 1 1 280px; min-width: 230px; }
+    .toolbar-copy strong { display: block; }
+    .toolbar-copy small { color: var(--muted); }
+    .button { border: 1px solid var(--line); border-radius: 7px; padding: 9px 13px; background: white; color: var(--ink); }
+    .button:hover:not(:disabled) { background: #f3f8fa; }
+    .button.primary { border-color: var(--teal); background: var(--teal); color: white; font-weight: 650; }
+    .button.primary:hover:not(:disabled) { background: var(--teal-dark); }
+    .button.secondary { border-color: #b9d9d7; background: var(--blue-soft); color: #075d61; }
+    .button.danger { color: #8b3025; }
+    .toolbar select, .result-tools select, .examples select { min-height: 38px; border: 1px solid var(--line); border-radius: 7px; background: white; color: var(--ink); padding: 7px 10px; }
+    .layout { display: grid; grid-template-columns: minmax(260px, 330px) minmax(0, 1fr); gap: 18px; align-items: start; }
+    .panel { overflow: hidden; }
+    .panel-heading { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 14px 16px; border-bottom: 1px solid var(--line); }
+    .panel-heading h2 { margin: 0; font-size: 1.03rem; }
+    .panel-heading small { color: var(--muted); }
+    .source-summary { padding: 12px 16px; border-bottom: 1px solid var(--line); background: #f8fbfc; color: var(--muted); font-size: .88rem; }
+    .source-list { max-height: 680px; overflow: auto; }
+    .source-empty { padding: 24px 16px; color: var(--muted); }
+    .source-item { border-bottom: 1px solid #edf1f3; }
+    .source-top { display: flex; align-items: flex-start; gap: 7px; padding: 11px 12px 8px; }
+    .source-toggle { flex: 1; min-width: 0; padding: 0; border: 0; background: none; color: var(--ink); text-align: left; }
+    .source-toggle:hover .source-name { color: var(--teal-dark); }
+    .source-name { display: block; overflow-wrap: anywhere; font-weight: 650; }
+    .source-meta { display: block; margin-top: 2px; color: var(--muted); font-size: .78rem; }
+    .insert-name { flex: 0 0 auto; border: 1px solid var(--line); border-radius: 5px; background: white; padding: 3px 7px; color: var(--teal-dark); font: .78rem Consolas, monospace; }
+    .columns { padding: 0 12px 11px 23px; }
+    .column-chip { display: inline-block; margin: 3px 3px 0 0; border: 1px solid #dce7eb; border-radius: 5px; background: #f7fafb; padding: 3px 6px; color: #344e5d; font: .75rem Consolas, monospace; cursor: pointer; }
+    .column-chip:hover { border-color: var(--teal); background: var(--blue-soft); }
+    .workspace { min-width: 0; }
+    .query-panel { padding: 16px; }
+    .query-top { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 11px; }
+    .query-top h2 { margin: 0; font-size: 1.03rem; }
+    .examples { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+    .examples label { color: var(--muted); font-size: .86rem; }
+    textarea { display: block; width: 100%; min-height: 235px; resize: vertical; border: 1px solid #b9cbd3; border-radius: 8px; outline: none; padding: 13px; background: #fbfdfe; color: #173448; font-size: .91rem; line-height: 1.55; tab-size: 2; }
+    textarea:focus { border-color: var(--teal); box-shadow: 0 0 0 3px rgb(8 126 131 / 13%); }
+    .query-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 9px; margin-top: 11px; }
+    .query-help { margin: 10px 0 0; color: var(--muted); font-size: .84rem; }
+    .result-panel { margin-top: 18px; }
+    .result-tools { display: flex; flex-wrap: wrap; align-items: center; gap: 9px; color: var(--muted); font-size: .87rem; }
+    .result-scroll { max-height: 590px; overflow: auto; }
+    .result-table { width: 100%; border-collapse: collapse; font-size: .84rem; }
+    .result-table th { position: sticky; top: 0; z-index: 1; border-bottom: 1px solid #cad7dd; background: #f0f6f8; padding: 9px 10px; color: #3c5665; text-align: left; white-space: nowrap; }
+    .result-table td { max-width: 440px; border-bottom: 1px solid #edf1f3; padding: 8px 10px; overflow-wrap: anywhere; vertical-align: top; }
+    .result-table tr:nth-child(even) td { background: #fbfdfe; }
+    .result-empty { padding: 24px; color: var(--muted); text-align: center; }
+    .result-footer { display: flex; justify-content: space-between; align-items: center; gap: 12px; border-top: 1px solid var(--line); padding: 10px 14px; color: var(--muted); font-size: .85rem; }
+    .pagination { display: flex; gap: 7px; }
+    .pagination .button { padding: 5px 9px; }
+    .performance-intro { margin: 0 0 16px; color: var(--muted); }
+    .performance-toolbar { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 16px; padding: 16px; }
+    .performance-toolbar h2 { margin: 0; font-size: 1.05rem; }
+    .performance-toolbar p { margin: 3px 0 0; color: var(--muted); }
+    .performance-file-status { color: var(--muted); font-size: .88rem; }
+    .performance-controls { padding: 16px; }
+    .filter-grid { display: grid; grid-template-columns: repeat(4, minmax(150px, 1fr)); gap: 12px; }
+    .filter-grid label, .school-search-label { display: grid; gap: 5px; color: #3c5665; font-size: .87rem; font-weight: 650; }
+    .filter-grid select, .school-search, .school-matches { width: 100%; min-height: 40px; border: 1px solid #b9cbd3; border-radius: 7px; background: white; color: var(--ink); padding: 8px 10px; font: inherit; }
+    .school-picker { display: grid; grid-template-columns: minmax(220px, 1fr) minmax(240px, 1.2fr) auto; gap: 10px; align-items: end; margin-top: 14px; }
+    .school-matches { min-height: 40px; padding: 4px; }
+    .selected-schools { display: flex; flex-wrap: wrap; gap: 8px; margin: 12px 0 0; }
+    .school-chip { display: inline-flex; align-items: center; gap: 7px; border: 1px solid #b9d9d7; border-radius: 999px; background: var(--blue-soft); padding: 5px 9px; color: #075d61; font-size: .84rem; }
+    .school-chip button { border: 0; background: transparent; color: inherit; font-weight: 700; padding: 0 2px; }
+    .performance-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; margin-top: 14px; }
+    .performance-help { margin: 12px 0 0; color: var(--muted); font-size: .84rem; }
+    .performance-results { margin-top: 16px; }
+    .comparison-heading-tools { display: flex; flex-wrap: wrap; align-items: center; justify-content: flex-end; gap: 10px; }
+    .performance-summary { display: grid; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); gap: 12px; padding: 14px; }
+    .school-summary-card { min-width: 0; border: 1px solid var(--line); border-radius: 9px; padding: 12px; background: #fbfdfe; }
+    .school-summary-card h3 { margin: 0 0 3px; font-size: .98rem; }
+    .school-summary-card p { margin: 3px 0; color: var(--muted); font-size: .85rem; }
+    .school-summary-card strong { color: var(--ink); }
+    .comparison-note { margin: 0; padding: 0 14px 12px; color: var(--muted); font-size: .85rem; }
+    .comparison-table-wrap { max-height: 590px; overflow: auto; }
+    .comparison-table { width: max-content; min-width: 100%; table-layout: fixed; border-collapse: collapse; font-size: .85rem; }
+    .comparison-table th, .comparison-table td { overflow: hidden; border-bottom: 1px solid #edf1f3; padding: 6px; text-align: right; overflow-wrap: anywhere; }
+    .comparison-table th { position: sticky; top: 0; z-index: 1; background: #f0f6f8; color: #3c5665; padding-right: 15px; line-height: 1.3; white-space: normal; }
+    .comparison-column-label { display: block; }
+    .comparison-column-label span { display: block; }
+    .comparison-school-name { display: -webkit-box !important; overflow: hidden; -webkit-box-orient: vertical; -webkit-line-clamp: 2; }
+    .comparison-table td, .comparison-table th[scope="row"] { white-space: normal; }
+    .comparison-table th:first-child, .comparison-table td:first-child { position: sticky; left: 0; z-index: 2; background: #f8fbfc; text-align: left; }
+    .comparison-table th:first-child { z-index: 3; }
+    .comparison-resize-handle { position: absolute; top: 0; right: 0; width: 8px; height: 100%; border: 0; padding: 0; background: transparent; cursor: col-resize; touch-action: none; }
+    .comparison-resize-handle:hover, .comparison-resize-handle:focus-visible { background: rgb(8 126 131 / 25%); outline: 2px solid var(--teal); outline-offset: -2px; }
+    .performance-chart { margin-top: 18px; padding: 16px; }
+    .performance-chart h3 { margin: 0; font-size: 1rem; }
+    .chart-help, .chart-status { color: var(--muted); font-size: .87rem; }
+    .chart-help { margin: 5px 0 14px; }
+    .chart-subject-choices, .chart-grade-choices { display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: 7px; }
+    .chart-choice { display: flex; align-items: flex-start; gap: 7px; border: 1px solid var(--line); border-radius: 6px; padding: 7px 9px; background: #fbfdfe; }
+    .chart-choice input { margin-top: 4px; accent-color: var(--teal); }
+    .chart-choice span { min-width: 0; overflow-wrap: anywhere; }
+    .chart-core-tag { margin-left: 4px; color: var(--teal-dark); font-size: .76rem; font-weight: 650; }
+    .chart-actions, .chart-band-form { display: flex; flex-wrap: wrap; align-items: center; gap: 9px; margin-top: 12px; }
+    .chart-band-builder { margin: 16px 0 0; border: 1px solid var(--line); border-radius: 8px; padding: 12px; }
+    .chart-band-builder legend { padding: 0 5px; font-weight: 650; }
+    .chart-band-form label { display: grid; gap: 4px; color: #3c5665; font-size: .85rem; font-weight: 650; }
+    .chart-band-form input { min-height: 38px; border: 1px solid #b9cbd3; border-radius: 7px; padding: 7px 9px; font: inherit; }
+    .chart-bands { display: flex; flex-wrap: wrap; gap: 7px; margin-top: 12px; }
+    .chart-band-chip { display: inline-flex; align-items: center; gap: 7px; border: 1px solid #b9d9d7; border-radius: 999px; background: var(--blue-soft); padding: 5px 9px; color: #075d61; font-size: .83rem; }
+    .chart-band-chip button { border: 0; background: transparent; color: inherit; font-weight: 700; padding: 0 2px; }
+    .chart-scroll { overflow: auto; margin: 12px 0 0; padding: 0; border: 1px solid var(--line); border-radius: 8px; background: white; text-align: left; }
+    .grade-chart { display: block; min-width: 100%; margin: 0; }
+    .chart-legend { display: flex; flex-wrap: wrap; gap: 8px 14px; margin-top: 12px; }
+    .chart-legend-item { display: inline-flex; align-items: center; gap: 6px; font-size: .84rem; }
+    .chart-legend-swatch { width: 12px; height: 12px; border-radius: 2px; }
+    .chart-data-wrap { overflow: auto; margin-top: 12px; }
+    .chart-data-table { width: 100%; border-collapse: collapse; font-size: .85rem; }
+    .chart-data-table th, .chart-data-table td { border-bottom: 1px solid #edf1f3; padding: 7px 9px; text-align: left; }
+    .chart-data-table th { background: #f0f6f8; }
+    .chart-empty { margin: 12px 0 0; color: var(--muted); }
+    .comparison-empty { padding: 24px; color: var(--muted); text-align: center; }
+    .footnote { margin: 18px 2px 0; color: var(--muted); font-size: .85rem; }
+    .hidden-input { display: none; }
+    .busy { opacity: .66; pointer-events: none; }
+    @media (max-width: 880px) {
+      .layout { grid-template-columns: 1fr; }
+      .source-list { max-height: 380px; }
+    }
+    @media (max-width: 600px) {
+      main { padding: 13px; }
+      .topbar { padding: 18px 14px; }
+      .topbar-inner { align-items: flex-start; flex-direction: column; }
+      .toolbar { align-items: stretch; }
+      .toolbar > button { flex: 1 1 145px; }
+      .query-top { align-items: flex-start; }
+      .result-tools { width: 100%; }
+      .filter-grid { grid-template-columns: 1fr; }
+      .school-picker { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body>
+  <header class="topbar">
+    <div class="topbar-inner">
+      <div>
+        <h1>DfE School Data Lab</h1>
+        <p class="subtitle">Compare school-level Key Stage 4 exam outcomes in Bexley, Bromley and Greenwich.</p>
+      </div>
+      <span id="engineStatus" class="status" role="status">Loading KS4 data…</span>
+    </div>
+  </header>
+
+  <main>
+    <div id="message" class="notice" role="status" hidden></div>
+
+    <section id="ks4Tab" aria-label="Key stage 4 school comparison">
+      <div class="panel performance-toolbar">
+        <div>
+          <h2>2025/26 school subject results</h2>
+          <p>Compare provisional exam-entry grade counts for one subject across selected schools in Bexley, Bromley and Greenwich.</p>
+        </div>
+        <div>
+          <strong>Data file: <code>DfE_LondonSE_KS4_2025_26.csv</code></strong>
+          <div id="performanceFileStatus" class="performance-file-status" aria-live="polite">Loading data file automatically…</div>
+        </div>
+      </div>
+
+      <p class="performance-intro">This page automatically loads the local <code>DfE_LondonSE_KS4_2025_26.csv</code> file from the same folder. It contains school-level results for Bexley, Bromley and Greenwich and is queried locally in your browser.</p>
+
+      <section id="performanceControls" class="panel performance-controls" aria-label="School comparison filters" hidden>
+        <div class="filter-grid">
+          <label for="qualificationType">Qualification type
+            <select id="qualificationType" disabled><option value="">Loading data file…</option></select>
+          </label>
+          <label for="qualificationDetail">Qualification detail
+            <select id="qualificationDetail" disabled><option value="">Choose a qualification type</option></select>
+          </label>
+          <label for="performanceSubject">Subject
+            <select id="performanceSubject" disabled><option value="">Choose a qualification detail</option></select>
+          </label>
+          <label for="subjectGroup">Subject group (optional)
+            <select id="subjectGroup" disabled><option value="">All groups</option></select>
+          </label>
+        </div>
+
+        <div class="school-picker">
+          <label class="school-search-label" for="schoolSearch">Find a school by name, URN or local authority
+            <input id="schoolSearch" class="school-search" type="search" autocomplete="off" placeholder="Start typing a school or area" disabled>
+          </label>
+          <label class="school-search-label" for="schoolMatches">Matching schools
+            <select id="schoolMatches" class="school-matches" size="5" disabled aria-label="Matching schools"></select>
+          </label>
+          <button id="addSchool" class="button secondary" type="button" disabled>Add school</button>
+        </div>
+        <div id="selectedSchools" class="selected-schools" aria-live="polite"></div>
+        <div class="performance-actions">
+          <button id="compareSchools" class="button primary" type="button" disabled>Compare selected schools</button>
+          <span id="comparisonStatus" class="performance-file-status" aria-live="polite">Loading the KS4 data file…</span>
+        </div>
+        <p class="performance-help">No schools are selected by default; search for and add the schools you want to compare. Results are exam-entry counts, not unique pupils. Grade percentages use the source’s “Total exam entries” for that selected subject as the denominator. The separate reported pupil count is shown as context, not used as the denominator.</p>
+      </section>
+
+      <section class="panel performance-results" aria-label="School exam comparison">
+        <div class="panel-heading">
+          <h2>School comparison</h2>
+          <div class="comparison-heading-tools">
+            <small id="comparisonMeta">Loading data and comparison filters. Drag a header edge to resize a column; focus its resize handle and use the arrow keys for precise adjustment.</small>
+            <button id="exportComparison" class="button secondary" type="button" disabled>Export to Excel</button>
+          </div>
+        </div>
+        <div id="performanceSummary" class="performance-summary">
+          <div class="comparison-empty">Choose a qualification and subject, then add one or more schools once the data file has loaded.</div>
+        </div>
+        <p id="comparisonNote" class="comparison-note" hidden></p>
+        <div class="comparison-table-wrap">
+          <table class="comparison-table">
+            <colgroup id="comparisonColumns"></colgroup>
+            <thead id="comparisonHead"></thead>
+            <tbody id="comparisonBody"><tr><td class="comparison-empty">No comparison has been run.</td></tr></tbody>
+          </table>
+        </div>
+      </section>
+      <section id="performanceChart" class="panel performance-chart" aria-label="KS4 grade distribution charts" hidden>
+        <h3>Chart grade distributions</h3>
+        <p class="chart-help">Select up to six subjects for the selected schools. English Language and Maths are preselected when available. Choose individual grades for each band; bands can overlap for cumulative comparisons or be separate ranges. Percentages use total exam entries as the denominator. The optional subject-group filter above also applies to the chart.</p>
+        <div id="chartSubjectChoices" class="chart-subject-choices" aria-label="Chart subjects"></div>
+        <div class="chart-actions">
+          <button id="loadChartData" class="button secondary" type="button" disabled>Load chart grades</button>
+          <span id="chartStatus" class="chart-status" aria-live="polite">Loading the data file to configure charts.</span>
+        </div>
+        <fieldset id="chartBandBuilder" class="chart-band-builder" disabled hidden>
+          <legend>Create a grade band</legend>
+          <div id="chartGradeChoices" class="chart-grade-choices"></div>
+          <div class="chart-band-form">
+            <label for="chartBandName">Band label
+              <input id="chartBandName" type="text" maxlength="60" placeholder="For example, Grades 7-9">
+            </label>
+            <button id="addChartBand" class="button secondary" type="button" disabled>Add selected grades</button>
+          </div>
+        </fieldset>
+        <div id="chartBands" class="chart-bands" aria-label="Configured grade bands"></div>
+        <div id="chartLegend" class="chart-legend" aria-label="School legend"></div>
+        <div id="chartPlot" class="chart-scroll" hidden>
+          <svg id="gradeChart" class="grade-chart" role="img"></svg>
+        </div>
+        <p id="chartEmpty" class="chart-empty">Load chart grades to start building grade bands.</p>
+        <div id="chartDataWrap" class="chart-data-wrap" hidden>
+          <table class="chart-data-table">
+            <thead><tr><th>Subject</th><th>Grade band</th><th>Grades included</th><th>School</th><th>Entries</th><th>Percent</th></tr></thead>
+            <tbody id="chartDataBody"></tbody>
+          </table>
+        </div>
+      </section>
+      <p class="footnote"><strong>Important:</strong> rows are aggregated by school, qualification, subject/discount group and grade, with separate total-entry rows. Do not add the “Total exam entries” rows to grade counts. Different qualification types use different grade scales; compare like-for-like selections.</p>
+    </section>
+  </main>
+
+  <script type="module">
+    const DUCKDB_MODULE_URL = "https://cdn.jsdelivr.net/npm/@duckdb/duckdb-wasm@1.29.0/+esm";
+    const XLSX_MODULE_URL = "https://cdn.jsdelivr.net/npm/xlsx@0.18.5/+esm";
+    const state = {
+      duckdb: null,
+      dataProtocol: null,
+      worker: null,
+      connection: null,
+      sources: [],
+      columnsByTable: new Map(),
+      resultRows: [],
+      resultColumns: [],
+      page: 1,
+      pageSize: 100,
+      busy: false,
+      performance: {
+        source: null,
+        xlsx: null,
+        virtualFilename: null,
+        registered: false,
+        schools: [],
+        catalogue: [],
+        selectedSchools: [],
+        comparisonColumnWidths: new Map(),
+        chartSubjects: [],
+        chartRows: [],
+        chartGradeLabels: [],
+        chartBands: [],
+        chartDataLoaded: false,
+        metadataLoaded: false
+      }
+    };
+
+    const PERFORMANCE_TABLE = "ks4_subject_school_comparison";
+    const PERFORMANCE_FILENAME = "DfE_LondonSE_KS4_2025_26.csv";
+    const KS4_BOROUGHS = ["Bexley", "Bromley", "Greenwich"];
+    const MAX_CHART_SUBJECTS = 6;
+    const MAX_COMPARISON_SCHOOLS = 7;
+    let performanceFileSequence = 0;
+    const byId = id => document.getElementById(id);
+    const sqlInput = byId("sqlInput");
+    const quoteIdentifier = value => `"${String(value).replaceAll('"', '""')}"`;
+    const quoteString = value => `'${String(value).replaceAll("'", "''")}'`;
+    const boroughFilterSql = KS4_BOROUGHS.map(quoteString).join(", ");
+
+    function setStatus(text, ready = false) {
+      const el = byId("engineStatus");
+      el.textContent = text;
+      el.classList.toggle("ready", ready);
+    }
+
+    function showMessage(text, kind = "info") {
+      const el = byId("message");
+      el.replaceChildren();
+      const strong = document.createElement("strong");
+      strong.textContent = kind === "error" ? "Data lab error" : "Note";
+      const paragraph = document.createElement("p");
+      paragraph.textContent = text;
+      el.append(strong, paragraph);
+      el.classList.toggle("error", kind === "error");
+      el.hidden = false;
+    }
+
+    function clearMessage() {
+      byId("message").hidden = true;
+    }
+
+    function formatBytes(bytes) {
+      if (!Number.isFinite(bytes) || bytes < 0) return "size unavailable";
+      if (bytes < 1024) return `${bytes} B`;
+      const units = ["KB", "MB", "GB", "TB"];
+      let value = bytes / 1024;
+      let unit = units[0];
+      for (let i = 1; value >= 1024 && i < units.length; i++) {
+        value /= 1024;
+        unit = units[i];
+      }
+      return `${value.toFixed(value >= 10 ? 0 : 1)} ${unit}`;
+    }
+
+    function tableNameFromFile(filename, usedNames) {
+      const stem = filename.replace(/\.csv$/i, "");
+      let base = stem.toLowerCase().replace(/[^a-z0-9_]/g, "_").replace(/_+/g, "_");
+      if (!/^[a-z_]/.test(base)) base = `table_${base}`;
+      let candidate = base;
+      let index = 2;
+      while (usedNames.has(candidate)) candidate = `${base}_${index++}`;
+      usedNames.add(candidate);
+      return candidate;
+    }
+
+    async function registerCsvFile(virtualFilename, source) {
+      const file = source.file || (source.handle ? await source.handle.getFile() : null);
+      if (!file) throw new Error(`No readable File object is available for ${source.name}.`);
+      await state.duckdb.registerFileHandle(
+        virtualFilename,
+        file,
+        state.dataProtocol.BROWSER_FILEREADER,
+        true
+      );
+    }
+
+    async function createEngine() {
+      if (state.connection) {
+        try { await state.connection.close(); } catch {}
+      }
+      if (state.duckdb) {
+        try { await state.duckdb.terminate(); } catch {}
+      }
+      if (state.worker) state.worker.terminate();
+      state.connection = null;
+      state.duckdb = null;
+      state.worker = null;
+
+      setStatus("Starting local data engine…");
+      const duckdb = await import(DUCKDB_MODULE_URL);
+      state.dataProtocol = duckdb.DuckDBDataProtocol;
+      const bundle = await duckdb.selectBundle(duckdb.getJsDelivrBundles());
+      const workerUrl = URL.createObjectURL(new Blob(
+        [`importScripts("${bundle.mainWorker}");`],
+        { type: "text/javascript" }
+      ));
+      state.worker = new Worker(workerUrl);
+      state.duckdb = new duckdb.AsyncDuckDB(new duckdb.ConsoleLogger(), state.worker);
+      await state.duckdb.instantiate(bundle.mainModule, bundle.pthreadWorker);
+      state.connection = await state.duckdb.connect();
+      setStatus("SQL engine ready", true);
+    }
+
+    async function collectDirectoryFiles(directoryHandle, prefix = "") {
+      const found = [];
+      for await (const [name, entry] of directoryHandle.entries()) {
+        const relativePath = prefix ? `${prefix}/${name}` : name;
+        if (entry.kind === "directory") {
+          found.push(...await collectDirectoryFiles(entry, relativePath));
+        } else if (/\.csv$/i.test(name)) {
+          const file = await entry.getFile();
+          found.push({ name, relativePath, size: file.size, handle: entry, file });
+        }
+      }
+      return found;
+    }
+
+    async function chooseFolder() {
+      clearMessage();
+      if (!window.showDirectoryPicker) {
+        showMessage("Folder access is unavailable in this browser. Use Chrome or Edge on localhost and try again; the file-picker fallback can only load files smaller than 128 MB each.", "error");
+        return;
+      }
+      try {
+        const directory = await window.showDirectoryPicker({ mode: "read" });
+        const files = await collectDirectoryFiles(directory);
+        if (!files.length) throw new Error("No CSV files were found in the selected folder.");
+        await connectSources(files);
+      } catch (error) {
+        if (error.name !== "AbortError") showMessage(error.message || String(error), "error");
+      }
+    }
+
+    async function chooseFiles() {
+      byId("filePicker").click();
+    }
+
+    async function handleFileSelection(event) {
+      clearMessage();
+      const files = Array.from(event.target.files || []).filter(file => /\.csv$/i.test(file.name));
+      event.target.value = "";
+      if (!files.length) return;
+      const tooLarge = files.filter(file => file.size > FALLBACK_FILE_LIMIT);
+      const usable = files.filter(file => file.size <= FALLBACK_FILE_LIMIT);
+      if (tooLarge.length) {
+        showMessage(`${tooLarge.length} selected file(s) exceed the 128 MB fallback limit and were skipped. Use the folder picker in Chrome/Edge to query large files without copying them into browser memory: ${tooLarge.map(file => file.name).join(", ")}`, "info");
+      }
+      if (usable.length) {
+        await connectSources(usable.map(file => ({
+          name: file.name,
+          relativePath: file.webkitRelativePath || file.name,
+          size: file.size,
+          file,
+          handle: null
+        })));
+      }
+    }
+
+    async function loadDefaultPerformanceSource() {
+      clearMessage();
+      byId("performanceFileStatus").textContent = `Loading ${PERFORMANCE_FILENAME}…`;
+      byId("comparisonStatus").textContent = "Loading the local KS4 data file…";
+      try {
+        const response = await fetch(new URL(PERFORMANCE_FILENAME, window.location.href));
+        if (!response.ok) {
+          throw new Error(`Could not load ${PERFORMANCE_FILENAME} (HTTP ${response.status}).`);
+        }
+        const file = new File([await response.blob()], PERFORMANCE_FILENAME, { type: "text/csv" });
+        await connectPerformanceSource({ name: file.name, size: file.size, handle: null, file });
+      } catch (error) {
+        console.error(`Could not load the local KS4 data file ${PERFORMANCE_FILENAME}`, error);
+        byId("performanceFileStatus").textContent = `Could not load ${PERFORMANCE_FILENAME}`;
+        byId("comparisonStatus").textContent = `Check that ${PERFORMANCE_FILENAME} is in the same folder and reload this page.`;
+        showMessage(
+          `Could not load ${PERFORMANCE_FILENAME}. Make sure it is in the same folder as query.html and open this page from the local web server. Details: ${error.message || error}`,
+          "error"
+        );
+        setStatus("KS4 data file failed to load");
+      }
+    }
+
+    async function connectPerformanceSource(source) {
+      setBusy(true);
+      clearMessage();
+      byId("performanceFileStatus").textContent = `Connecting ${source.name}…`;
+      byId("comparisonStatus").textContent = `Registering ${PERFORMANCE_FILENAME} and indexing its school and subject lists…`;
+      byId("performanceControls").hidden = true;
+      byId("schoolSearch").disabled = true;
+      state.performance.metadataLoaded = false;
+      state.performance.schools = [];
+      state.performance.catalogue = [];
+      state.performance.selectedSchools = [];
+      state.performance.chartSubjects = [];
+      clearChartResults("Loading the data file to configure charts.");
+      byId("performanceChart").hidden = true;
+      clearComparisonResults("Choose filters and schools to run a comparison.");
+      byId("comparisonMeta").textContent = `Loading school and subject information from ${PERFORMANCE_FILENAME}…`;
+      renderSelectedSchools();
+      try {
+        if (!state.connection) await createEngine();
+        await registerPerformanceSource(source, true);
+        byId("performanceControls").hidden = false;
+        byId("performanceFileStatus").textContent = `${source.name} · ${formatBytes(source.size)} · ${state.performance.schools.length.toLocaleString()} schools`;
+        byId("comparisonStatus").textContent = `${state.performance.catalogue.length.toLocaleString()} qualification/subject groupings ready.`;
+        setSelectOptions(
+          byId("qualificationType"),
+          distinctSorted(state.performance.catalogue.map(item => item.qualificationType)),
+          "Choose qualification type"
+        );
+        updatePerformanceFilters("type");
+        byId("performanceChart").hidden = false;
+        renderSelectedSchools();
+        renderSchoolMatches();
+        byId("comparisonStatus").textContent = `${state.performance.catalogue.length.toLocaleString()} qualification/subject groupings ready. Add one or more schools to compare.`;
+        setStatus("KS4 exam data ready", true);
+      } catch (error) {
+        console.error("Could not connect the KS4 comparison source", error);
+        byId("performanceFileStatus").textContent = `Could not connect ${PERFORMANCE_FILENAME}`;
+        byId("comparisonStatus").textContent = `Check ${PERFORMANCE_FILENAME} and reload the page.`;
+        showMessage(`Could not connect or read ${PERFORMANCE_FILENAME}: ${error.message || error}`, "error");
+        state.performance.source = null;
+        state.performance.registered = false;
+        byId("schoolSearch").disabled = true;
+        setStatus("KS4 exam data failed");
+      } finally {
+        setBusy(false);
+        updatePerformanceButtons();
+      }
+    }
+
+    async function registerPerformanceSource(source, loadMetadata) {
+      if (!state.connection) await createEngine();
+      if (state.performance.registered) {
+        await state.connection.query(`DROP VIEW ${quoteIdentifier(PERFORMANCE_TABLE)}`);
+        state.performance.registered = false;
+      }
+      const virtualFilename = `ks4_exam_${++performanceFileSequence}.csv`;
+      await registerCsvFile(virtualFilename, source);
+      const viewSql = `CREATE VIEW ${quoteIdentifier(PERFORMANCE_TABLE)} AS SELECT * FROM read_csv_auto(${quoteString(virtualFilename)}, header = true, all_varchar = true)`;
+      await state.connection.query(viewSql);
+      state.performance.source = source;
+      state.performance.virtualFilename = virtualFilename;
+      state.performance.registered = true;
+      byId("performanceFileStatus").textContent = `Reading school and subject lists from ${source.name}…`;
+      if (loadMetadata || !state.performance.metadataLoaded) await loadPerformanceMetadata();
+      byId("performanceControls").hidden = false;
+      byId("schoolSearch").disabled = false;
+      byId("performanceFileStatus").textContent = `${source.name} · ${formatBytes(source.size)} · ${state.performance.schools.length.toLocaleString()} schools`;
+    }
+
+    async function loadPerformanceMetadata() {
+      const schoolsResult = await state.connection.query(
+        `SELECT DISTINCT school_urn, school_name, la_name, establishment_type_group
+         FROM ${quoteIdentifier(PERFORMANCE_TABLE)}
+         WHERE geographic_level = 'School' AND la_name IN (${boroughFilterSql})
+         ORDER BY school_name, school_urn`
+      );
+      state.performance.schools = schoolsResult.toArray().map(row => {
+        const values = row.toJSON();
+        return {
+          urn: String(values.school_urn),
+          name: String(values.school_name),
+          localAuthority: String(values.la_name),
+          establishmentType: String(values.establishment_type_group)
+        };
+      });
+      const catalogueResult = await state.connection.query(
+        `SELECT DISTINCT qualification_type, qualification_detailed, subject, subject_discount_group
+         FROM ${quoteIdentifier(PERFORMANCE_TABLE)}
+         WHERE geographic_level = 'School' AND la_name IN (${boroughFilterSql})
+         ORDER BY qualification_type, qualification_detailed, subject, subject_discount_group`
+      );
+      state.performance.catalogue = catalogueResult.toArray().map(row => {
+        const values = row.toJSON();
+        return {
+          qualificationType: String(values.qualification_type),
+          qualificationDetail: String(values.qualification_detailed),
+          subject: String(values.subject),
+          subjectGroup: String(values.subject_discount_group)
+        };
+      });
+      state.performance.metadataLoaded = true;
+    }
+
+    function distinctSorted(values) {
+      return [...new Set(values.filter(value => value && value !== "null"))]
+        .sort((a, b) => a.localeCompare(b, undefined, { sensitivity: "base", numeric: true }));
+    }
+
+    function setSelectOptions(select, values, placeholder) {
+      select.replaceChildren();
+      const first = document.createElement("option");
+      first.value = "";
+      first.textContent = placeholder;
+      select.append(first);
+      for (const value of values) {
+        const option = document.createElement("option");
+        option.value = value;
+        option.textContent = value;
+        select.append(option);
+      }
+      select.disabled = values.length === 0;
+    }
+
+    function updatePerformanceFilters(changed = "") {
+      const catalogue = state.performance.catalogue;
+      const type = byId("qualificationType").value;
+      const detailSelect = byId("qualificationDetail");
+      const subjectSelect = byId("performanceSubject");
+      const groupSelect = byId("subjectGroup");
+
+      if (!state.performance.registered) return;
+      if (changed === "type") {
+        setSelectOptions(detailSelect, distinctSorted(catalogue
+          .filter(item => item.qualificationType === type)
+          .map(item => item.qualificationDetail)), "Choose qualification detail");
+        setSelectOptions(subjectSelect, [], "Choose a qualification detail");
+        setSelectOptions(groupSelect, [], "Choose a subject first");
+      } else if (changed === "detail") {
+        const detail = detailSelect.value;
+        setSelectOptions(subjectSelect, distinctSorted(catalogue
+          .filter(item => item.qualificationType === type && item.qualificationDetail === detail)
+          .map(item => item.subject)), "Choose subject");
+        setSelectOptions(groupSelect, [], "Choose a subject first");
+      } else if (changed === "subject") {
+        const detail = detailSelect.value;
+        const subject = subjectSelect.value;
+        const groups = distinctSorted(catalogue
+          .filter(item => item.qualificationType === type
+            && item.qualificationDetail === detail
+            && item.subject === subject)
+          .map(item => item.subjectGroup));
+        setSelectOptions(groupSelect, groups, "All subject groups");
+        groupSelect.disabled = groups.length === 0;
+      }
+      if (changed === "type" || changed === "detail") {
+        renderChartSubjects(true);
+      }
+      if (changed) {
+        clearChartResults("Filters changed; reload chart grades.");
+        const message = canCompareSchools()
+          ? "Filters changed; run a new comparison."
+          : "Choose filters and schools to run a comparison.";
+        clearComparisonResults(message);
+        byId("comparisonStatus").textContent = message;
+      }
+      updatePerformanceButtons();
+    }
+
+    function renderChartSubjects(resetToCore = false) {
+      const container = byId("chartSubjectChoices");
+      const type = byId("qualificationType").value;
+      const detail = byId("qualificationDetail").value;
+      const subjects = distinctSorted(state.performance.catalogue
+        .filter(item => item.qualificationType === type && item.qualificationDetail === detail)
+        .map(item => item.subject));
+      const subjectSet = new Set(subjects);
+      if (resetToCore) {
+        state.performance.chartSubjects = getCoreChartSubjects(subjects);
+      } else {
+        state.performance.chartSubjects = state.performance.chartSubjects.filter(subject => subjectSet.has(subject));
+      }
+      const coreSubjects = new Set(getCoreChartSubjects(subjects));
+      container.replaceChildren();
+      for (const subject of subjects) {
+        const label = document.createElement("label");
+        label.className = "chart-choice";
+        const checkbox = document.createElement("input");
+        checkbox.type = "checkbox";
+        checkbox.value = subject;
+        checkbox.checked = state.performance.chartSubjects.includes(subject);
+        checkbox.disabled = !checkbox.checked && state.performance.chartSubjects.length >= MAX_CHART_SUBJECTS;
+        const text = document.createElement("span");
+        text.append(document.createTextNode(subject));
+        if (coreSubjects.has(subject)) {
+          const core = document.createElement("span");
+          core.className = "chart-core-tag";
+          core.textContent = "Core";
+          text.append(core);
+        }
+        label.append(checkbox, text);
+        container.append(label);
+      }
+      if (!subjects.length) {
+        const empty = document.createElement("span");
+        empty.className = "chart-status";
+        empty.textContent = "Choose a qualification type and detail to see available subjects.";
+        container.append(empty);
+      }
+      updateChartButtons();
+    }
+
+    function getCoreChartSubjects(subjects) {
+      const english = subjects.find(subject => /^english language$/i.test(subject));
+      const mathematics = subjects.find(subject => /^mathematics$/i.test(subject))
+        || subjects.find(subject => /^maths$/i.test(subject));
+      return [english, mathematics].filter(subject => subject !== undefined);
+    }
+
+    function updateChartButtons() {
+      const hasFilters = state.performance.registered
+        && Boolean(byId("qualificationType").value)
+        && Boolean(byId("qualificationDetail").value)
+        && state.performance.selectedSchools.length > 0;
+      byId("loadChartData").disabled = state.busy
+        || !hasFilters
+        || state.performance.chartSubjects.length === 0
+        || state.performance.chartSubjects.length > MAX_CHART_SUBJECTS;
+      const hasSelectedGrades = [...byId("chartGradeChoices").querySelectorAll('input[type="checkbox"]:checked')].length > 0;
+      byId("addChartBand").disabled = state.busy
+        || !state.performance.chartDataLoaded
+        || !hasSelectedGrades
+        || !byId("chartBandName").value.trim();
+    }
+
+    function clearChartResults(message) {
+      state.performance.chartRows = [];
+      state.performance.chartGradeLabels = [];
+      state.performance.chartBands = [];
+      state.performance.chartDataLoaded = false;
+      byId("chartGradeChoices").replaceChildren();
+      byId("chartBandBuilder").disabled = true;
+      byId("chartBandBuilder").hidden = true;
+      byId("chartBands").replaceChildren();
+      byId("chartLegend").replaceChildren();
+      byId("gradeChart").replaceChildren();
+      byId("chartPlot").hidden = true;
+      byId("chartDataBody").replaceChildren();
+      byId("chartDataWrap").hidden = true;
+      byId("chartEmpty").hidden = false;
+      byId("chartEmpty").textContent = message;
+      byId("chartStatus").textContent = message;
+      updateChartButtons();
+    }
+
+    async function loadChartGrades() {
+      if (state.busy || byId("loadChartData").disabled) return;
+      clearMessage();
+      clearChartResults("Loading grades for the selected subjects and schools…");
+      setBusy(true);
+      byId("chartStatus").textContent = "Querying selected schools and subjects…";
+      try {
+        const conditions = [
+          `qualification_type = ${quoteString(byId("qualificationType").value)}`,
+          `qualification_detailed = ${quoteString(byId("qualificationDetail").value)}`,
+          `subject IN (${state.performance.chartSubjects.map(quoteString).join(", ")})`,
+          `school_urn IN (${state.performance.selectedSchools.map(school => quoteString(school.urn)).join(", ")})`,
+          `la_name IN (${boroughFilterSql})`
+        ];
+        if (byId("subjectGroup").value) {
+          conditions.push(`subject_discount_group = ${quoteString(byId("subjectGroup").value)}`);
+        }
+        const query = `SELECT school_urn, school_name, subject, grade,
+                              SUM(TRY_CAST(number_achieving AS BIGINT)) AS entry_count
+                       FROM ${quoteIdentifier(PERFORMANCE_TABLE)}
+                       WHERE geographic_level = 'School' AND ${conditions.join(" AND ")}
+                       GROUP BY school_urn, school_name, subject, grade
+                       ORDER BY subject, school_name, grade`;
+        const result = await state.connection.query(query);
+        state.performance.chartRows = result.toArray().map(row => row.toJSON());
+        state.performance.chartGradeLabels = distinctSorted(state.performance.chartRows
+          .map(row => String(row.grade))
+          .filter(grade => grade.toLocaleLowerCase() !== "total exam entries"))
+          .sort(compareGradeLabels);
+        state.performance.chartDataLoaded = true;
+        renderChartGradeChoices();
+        if (!state.performance.chartRows.length || !state.performance.chartGradeLabels.length) {
+          byId("chartStatus").textContent = "No grade rows matched the selected subjects and schools.";
+          byId("chartEmpty").textContent = "No grade rows are available for this selection.";
+          updateChartButtons();
+          return;
+        }
+        byId("chartBandBuilder").hidden = false;
+        byId("chartBandBuilder").disabled = false;
+        byId("chartStatus").textContent = `${state.performance.chartGradeLabels.length} grades available. Select one or more grades, name the band, then add it to the chart.`;
+        byId("chartEmpty").textContent = "Add at least one grade band to draw the stacked chart.";
+      } catch (error) {
+        console.error("Could not load grade data for the KS4 chart", error);
+        byId("chartStatus").textContent = "Could not load chart grades.";
+        byId("chartEmpty").textContent = "Chart data could not be loaded.";
+        showMessage(`Could not load chart grades: ${error.message || error}`, "error");
+      } finally {
+        setBusy(false);
+        updatePerformanceButtons();
+        updateChartButtons();
+      }
+    }
+
+    function renderChartGradeChoices() {
+      const container = byId("chartGradeChoices");
+      container.replaceChildren();
+      const assignedGrades = new Set(state.performance.chartBands.flatMap(band => band.grades));
+      for (const grade of state.performance.chartGradeLabels) {
+        const label = document.createElement("label");
+        label.className = "chart-choice";
+        const checkbox = document.createElement("input");
+        checkbox.type = "checkbox";
+        checkbox.value = grade;
+        checkbox.disabled = assignedGrades.has(grade);
+        const text = document.createElement("span");
+        text.textContent = assignedGrades.has(grade) ? `${grade} (already in a band)` : grade;
+        label.append(checkbox, text);
+        container.append(label);
+      }
+      updateChartButtons();
+    }
+
+    function addChartBand() {
+      const grades = [...byId("chartGradeChoices").querySelectorAll('input[type="checkbox"]:checked')]
+        .map(checkbox => checkbox.value);
+      const label = byId("chartBandName").value.trim();
+      if (!label || !grades.length) return;
+      const assignedGrades = new Set(state.performance.chartBands.flatMap(band => band.grades));
+      const duplicateGrades = grades.filter(grade => assignedGrades.has(grade));
+      if (duplicateGrades.length) {
+        byId("chartStatus").textContent = `Grades must only appear in one band for a stacked chart: ${duplicateGrades.join(", ")}.`;
+        return;
+      }
+      state.performance.chartBands.push({
+        id: `${Date.now()}-${state.performance.chartBands.length}`,
+        label,
+        grades
+      });
+      byId("chartBandName").value = "";
+      for (const checkbox of byId("chartGradeChoices").querySelectorAll('input[type="checkbox"]:checked')) {
+        checkbox.checked = false;
+      }
+      renderChartGradeChoices();
+      renderChartBands();
+      updateChartButtons();
+    }
+
+    function renderChartBands() {
+      const container = byId("chartBands");
+      container.replaceChildren();
+      for (const band of state.performance.chartBands) {
+        const chip = document.createElement("span");
+        chip.className = "chart-band-chip";
+        chip.append(document.createTextNode(`${band.label} · ${band.grades.join(", ")}`));
+        const remove = document.createElement("button");
+        remove.type = "button";
+        remove.textContent = "×";
+        remove.setAttribute("aria-label", `Remove grade band ${band.label}`);
+        remove.addEventListener("click", () => {
+          state.performance.chartBands = state.performance.chartBands.filter(item => item.id !== band.id);
+          renderChartGradeChoices();
+          renderChartBands();
+        });
+        chip.append(remove);
+        container.append(chip);
+      }
+      renderGradeDistributionChart();
+    }
+
+    function renderGradeDistributionChart() {
+      const schools = state.performance.selectedSchools;
+      const subjects = state.performance.chartSubjects;
+      const bands = state.performance.chartBands;
+      const svg = byId("gradeChart");
+      const svgNamespace = "http://www.w3.org/2000/svg";
+      const schoolData = new Map();
+      for (const school of schools) {
+        for (const subject of subjects) {
+          schoolData.set(`${school.urn}\u0000${subject}`, {
+            school,
+            subject,
+            totalEntries: 0,
+            hasTotal: false,
+            grades: new Map()
+          });
+        }
+      }
+      for (const row of state.performance.chartRows) {
+        const data = schoolData.get(`${String(row.school_urn)}\u0000${String(row.subject)}`);
+        if (!data) continue;
+        const grade = String(row.grade);
+        const count = Number(row.entry_count);
+        if (!Number.isFinite(count)) continue;
+        if (grade.toLocaleLowerCase() === "total exam entries") {
+          data.totalEntries += count;
+          data.hasTotal = true;
+        } else {
+          data.grades.set(grade, (data.grades.get(grade) || 0) + count);
+        }
+      }
+      for (const data of schoolData.values()) {
+        if (!data.hasTotal) data.totalEntries = [...data.grades.values()].reduce((sum, count) => sum + count, 0);
+      }
+
+      const categories = subjects;
+      const legend = byId("chartLegend");
+      legend.replaceChildren();
+      const colors = ["#087e83", "#3659a8", "#ce6d22", "#7b4ca0", "#2d8856", "#bd4772", "#677783"];
+      const bandPatterns = [
+        { type: "solid", label: "Solid fill" },
+        { type: "dots", label: "Dotted pattern" },
+        { type: "stripes", label: "Striped pattern", path: "M0,3 H12 M0,9 H12" },
+        { type: "vertical", label: "Vertical stripes", path: "M3,0 V12 M9,0 V12" },
+        { type: "crosshatch", label: "Crosshatch pattern", path: "M-2,2 L10,-10 M0,12 L12,0 M10,14 L14,10 M-2,-2 L10,10 M0,0 L12,12" }
+      ];
+      schools.forEach((school, index) => {
+        const item = document.createElement("span");
+        item.className = "chart-legend-item";
+        const swatch = document.createElement("span");
+        swatch.className = "chart-legend-swatch";
+        swatch.style.backgroundColor = colors[index % colors.length];
+        const name = document.createElement("span");
+        name.textContent = school.name;
+        item.append(swatch, name);
+        legend.append(item);
+      });
+      bands.forEach((band, index) => {
+        const item = document.createElement("span");
+        item.className = "chart-legend-item";
+        const swatch = document.createElement("span");
+        swatch.className = "chart-legend-swatch";
+        const pattern = bandPatterns[index % bandPatterns.length];
+        if (pattern.type === "dots") {
+          swatch.style.backgroundImage = "radial-gradient(#172b3a 1px, transparent 1.5px)";
+          swatch.style.backgroundSize = "5px 5px";
+        } else if (pattern.path) {
+          swatch.style.backgroundImage = pattern.type === "crosshatch"
+            ? "repeating-linear-gradient(45deg, transparent 0 3px, #172b3a 3px 4px), repeating-linear-gradient(-45deg, transparent 0 3px, #172b3a 3px 4px)"
+            : "repeating-linear-gradient(0deg, transparent 0 3px, #172b3a 3px 4px)";
+        }
+        swatch.style.backgroundColor = "#fff";
+        swatch.style.border = "1px solid #71808a";
+        const name = document.createElement("span");
+        name.textContent = `${band.label} (${pattern.label})`;
+        item.append(swatch, name);
+        legend.append(item);
+      });
+
+      svg.replaceChildren();
+      byId("chartDataBody").replaceChildren();
+      if (!categories.length) {
+        byId("chartPlot").hidden = true;
+        byId("chartDataWrap").hidden = true;
+        byId("chartEmpty").hidden = false;
+        byId("chartEmpty").textContent = "Add at least one grade band to draw the stacked chart.";
+        return;
+      }
+
+      const margin = { top: 25, right: 20, bottom: 80, left: 44 };
+      const schoolGap = 14;
+      const barWidth = 38;
+      const subjectGroupWidth = Math.max(250, schools.length * barWidth + Math.max(0, schools.length - 1) * schoolGap + 24);
+      const width = Math.max(720, margin.left + margin.right + categories.length * subjectGroupWidth);
+      const height = 390;
+      const plotHeight = 270;
+      const plotWidth = width - margin.left - margin.right;
+      const makeSvgElement = (name, attributes, text = "") => {
+        const element = document.createElementNS(svgNamespace, name);
+        for (const [key, value] of Object.entries(attributes)) element.setAttribute(key, String(value));
+        if (text) element.textContent = text;
+        return element;
+      };
+      svg.setAttribute("viewBox", `0 0 ${width} ${height}`);
+      svg.setAttribute("aria-label", `Clustered grade-band percentages for ${subjects.length} subjects across ${schools.length} schools`);
+      svg.style.width = `${width}px`;
+      svg.style.height = `${height}px`;
+
+      const definitions = makeSvgElement("defs", {});
+      const patternIds = new Map();
+      schools.forEach((school, schoolIndex) => {
+        bands.forEach((band, bandIndex) => {
+          const patternId = `grade-band-${schoolIndex}-${bandIndex}`;
+          patternIds.set(`${school.urn}\u0000${band.id}`, patternId);
+          const pattern = makeSvgElement("pattern", {
+            id: patternId,
+            width: 12,
+            height: 12,
+            patternUnits: "userSpaceOnUse",
+            ...(bandIndex > 2 ? { patternTransform: `rotate(${((bandIndex - 2) * 31) % 180})` } : {})
+          });
+          pattern.append(makeSvgElement("rect", {
+            width: 12,
+            height: 12,
+            fill: colors[schoolIndex % colors.length]
+          }));
+          const bandPattern = bandPatterns[bandIndex % bandPatterns.length];
+          if (bandPattern.type === "dots") {
+            pattern.append(makeSvgElement("circle", { cx: 3, cy: 3, r: 1.25, fill: "white", "fill-opacity": .95 }));
+            pattern.append(makeSvgElement("circle", { cx: 9, cy: 9, r: 1.25, fill: "white", "fill-opacity": .95 }));
+          } else if (bandPattern.path) {
+            pattern.append(makeSvgElement("path", {
+              d: bandPattern.path,
+              stroke: "white",
+              "stroke-width": bandPattern.type === "crosshatch" ? 1.5 : 1,
+              "stroke-opacity": .9
+            }));
+          }
+          definitions.append(pattern);
+        });
+      });
+      svg.append(definitions);
+
+      for (let tick = 0; tick <= 100; tick += 20) {
+        const y = margin.top + plotHeight * (1 - tick / 100);
+        svg.append(makeSvgElement("line", { x1: margin.left, y1: y, x2: width - margin.right, y2: y, stroke: "#d8e1e7" }));
+        svg.append(makeSvgElement("text", { x: 4, y: y + 4, "text-anchor": "start", fill: "#5b6d7a", "font-size": 11 }, `${tick}%`));
+      }
+
+      categories.forEach((subject, subjectIndex) => {
+        const subjectStart = margin.left + subjectIndex * subjectGroupWidth;
+        schools.forEach((school, schoolIndex) => {
+          const clusterStart = subjectStart + 12 + schoolIndex * (barWidth + schoolGap);
+          const data = schoolData.get(`${school.urn}\u0000${subject}`);
+          let stackedHeight = 0;
+          bands.forEach((band, bandIndex) => {
+            const entries = band.grades.reduce((sum, grade) => sum + (data?.grades.get(grade) || 0), 0);
+            const percent = data?.totalEntries ? entries / data.totalEntries * 100 : 0;
+            const barHeight = plotHeight * percent / 100;
+            const y = margin.top + plotHeight - stackedHeight - barHeight;
+            const rect = makeSvgElement("rect", {
+              x: clusterStart, y, width: barWidth, height: barHeight,
+              fill: `url(#${patternIds.get(`${school.urn}\u0000${band.id}`)})`,
+              stroke: "white",
+              "stroke-width": 1
+            });
+            rect.append(makeSvgElement("title", {}, `${school.name} · ${subject} · ${band.label}: ${percent.toFixed(1)}% (${entries.toLocaleString()} of ${(data?.totalEntries || 0).toLocaleString()} entries)`));
+            svg.append(rect);
+            stackedHeight += barHeight;
+          });
+          svg.append(makeSvgElement("text", {
+            x: clusterStart + barWidth / 2,
+            y: margin.top + plotHeight + 18,
+            "text-anchor": "middle",
+            fill: "#5b6d7a",
+            "font-size": 9
+          }, school.name.length > 14 ? `${school.name.slice(0, 12)}…` : school.name));
+        });
+        const center = subjectStart + subjectGroupWidth / 2;
+        svg.append(makeSvgElement("text", { x: center, y: margin.top + plotHeight + 42, "text-anchor": "middle", fill: "#344e5d", "font-size": 12, "font-weight": 650 }, subject));
+      });
+
+      for (const subject of categories) {
+        for (const band of bands) {
+          for (const school of schools) {
+            const data = schoolData.get(`${school.urn}\u0000${subject}`);
+            const entries = band.grades.reduce((sum, grade) => sum + (data?.grades.get(grade) || 0), 0);
+            const percent = data?.totalEntries ? entries / data.totalEntries * 100 : null;
+            const row = document.createElement("tr");
+            for (const value of [
+              subject,
+              band.label,
+              band.grades.join(", "),
+              school.name,
+              data ? entries.toLocaleString() : "No data",
+              percent === null ? "Not available" : `${percent.toFixed(1)}%`
+            ]) {
+              const cell = document.createElement("td");
+              cell.textContent = value;
+              row.append(cell);
+            }
+            byId("chartDataBody").append(row);
+          }
+        }
+      }
+      byId("chartPlot").hidden = false;
+      byId("chartDataWrap").hidden = false;
+      byId("chartEmpty").hidden = true;
+    }
+
+    function renderSchoolMatches() {
+      const select = byId("schoolMatches");
+      const search = byId("schoolSearch").value.trim().toLocaleLowerCase();
+      const selected = new Set(state.performance.selectedSchools.map(school => school.urn));
+      const matches = state.performance.schools
+        .filter(school => !search || `${school.name} ${school.urn} ${school.localAuthority}`.toLocaleLowerCase().includes(search))
+        .slice(0, 50);
+      select.replaceChildren();
+      if (matches.length) {
+        const prompt = document.createElement("option");
+        prompt.value = "";
+        prompt.textContent = search ? "Select a matching school" : "Type to narrow the list, or select a school";
+        prompt.disabled = true;
+        prompt.selected = true;
+        select.append(prompt);
+      }
+      for (const school of matches) {
+        const option = document.createElement("option");
+        option.value = school.urn;
+        option.textContent = `${school.name} — ${school.localAuthority} (${school.urn})${selected.has(school.urn) ? " · added" : ""}`;
+        option.disabled = selected.has(school.urn);
+        select.append(option);
+      }
+      if (!matches.length) {
+        const option = document.createElement("option");
+        option.value = "";
+        option.textContent = search ? "No matching schools" : "No schools available";
+        select.append(option);
+      }
+      select.disabled = !state.performance.registered || matches.length === 0;
+      updatePerformanceButtons();
+    }
+
+    function canAddSchool() {
+      return state.performance.registered
+        && state.performance.selectedSchools.length < MAX_COMPARISON_SCHOOLS
+        && Boolean(byId("schoolMatches").value)
+        && !state.performance.selectedSchools.some(school => school.urn === byId("schoolMatches").value);
+    }
+
+    function canCompareSchools() {
+      return state.performance.registered
+        && Boolean(byId("qualificationType").value)
+        && Boolean(byId("qualificationDetail").value)
+        && Boolean(byId("performanceSubject").value)
+        && state.performance.selectedSchools.length > 0;
+    }
+
+    function updatePerformanceButtons() {
+      byId("addSchool").disabled = state.busy || !canAddSchool();
+      byId("compareSchools").disabled = state.busy || !canCompareSchools();
+      updateChartButtons();
+    }
+
+    function addSelectedSchool() {
+      const urn = byId("schoolMatches").value;
+      const school = state.performance.schools.find(item => item.urn === urn);
+      if (!school || !canAddSchool()) return;
+      state.performance.selectedSchools.push(school);
+      renderSelectedSchools();
+      renderSchoolMatches();
+      clearComparisonResults("School selection changed; run a new comparison.");
+      clearChartResults("School selection changed; reload chart grades.");
+      byId("comparisonStatus").textContent = "School selection changed; run a new comparison.";
+      updatePerformanceButtons();
+    }
+
+    function renderSelectedSchools() {
+      const container = byId("selectedSchools");
+      container.replaceChildren();
+      for (const school of state.performance.selectedSchools) {
+        const chip = document.createElement("span");
+        chip.className = "school-chip";
+        chip.append(document.createTextNode(`${school.name} · ${school.localAuthority}`));
+        const remove = document.createElement("button");
+        remove.type = "button";
+        remove.textContent = "×";
+        remove.setAttribute("aria-label", `Remove ${school.name}`);
+        remove.addEventListener("click", () => {
+          state.performance.selectedSchools = state.performance.selectedSchools.filter(item => item.urn !== school.urn);
+          renderSelectedSchools();
+          renderSchoolMatches();
+          clearComparisonResults("School selection changed; run a new comparison.");
+          clearChartResults("School selection changed; reload chart grades.");
+          byId("comparisonStatus").textContent = "School selection changed; run a new comparison.";
+          updatePerformanceButtons();
+        });
+        chip.append(remove);
+        container.append(chip);
+      }
+    }
+
+    function compareGradeLabels(left, right) {
+      const numericLeft = /^\d+$/.test(left);
+      const numericRight = /^\d+$/.test(right);
+      if (numericLeft && numericRight) return Number(right) - Number(left);
+      if (numericLeft !== numericRight) return numericLeft ? -1 : 1;
+      const gradeRanks = new Map([
+        ["a*", 0], ["a", 1], ["b", 2], ["c", 3], ["d", 4], ["e", 5], ["f", 6], ["g", 7],
+        ["level 2 distinction star", 10], ["level 2 distinction", 11], ["distinction", 12],
+        ["level 2 merit", 13], ["merit", 14], ["level 2 pass", 15], ["pass", 16],
+        ["level 1 distinction star", 20], ["level 1 distinction", 21], ["level 1 merit", 22], ["level 1 pass", 23],
+        ["u", 90], ["x", 91]
+      ]);
+      const rankLeft = gradeRanks.get(left.toLocaleLowerCase());
+      const rankRight = gradeRanks.get(right.toLocaleLowerCase());
+      if (rankLeft !== undefined && rankRight !== undefined) return rankLeft - rankRight;
+      if (rankLeft !== undefined) return -1;
+      if (rankRight !== undefined) return 1;
+      return left.localeCompare(right, undefined, { sensitivity: "base", numeric: true });
+    }
+
+    async function compareSelectedSchools() {
+      if (state.busy || !canCompareSchools()) return;
+      clearMessage();
+      setBusy(true);
+      byId("comparisonStatus").textContent = "Querying selected schools…";
+      byId("comparisonMeta").textContent = "Running comparison…";
+      try {
+        const conditions = [
+          `qualification_type = ${quoteString(byId("qualificationType").value)}`,
+          `qualification_detailed = ${quoteString(byId("qualificationDetail").value)}`,
+          `subject = ${quoteString(byId("performanceSubject").value)}`,
+          `school_urn IN (${state.performance.selectedSchools.map(school => quoteString(school.urn)).join(", ")})`,
+          `la_name IN (${boroughFilterSql})`
+        ];
+        if (byId("subjectGroup").value) {
+          conditions.push(`subject_discount_group = ${quoteString(byId("subjectGroup").value)}`);
+        }
+        const query = `SELECT school_urn, school_name, la_name, establishment_type_group, grade,
+                              MAX(TRY_CAST(pupil_count AS BIGINT)) AS reported_pupil_count,
+                              SUM(TRY_CAST(number_achieving AS BIGINT)) AS entry_count
+                       FROM ${quoteIdentifier(PERFORMANCE_TABLE)}
+                       WHERE geographic_level = 'School' AND ${conditions.join(" AND ")}
+                       GROUP BY school_urn, school_name, la_name, establishment_type_group, grade
+                       ORDER BY school_name, grade`;
+        const result = await state.connection.query(query);
+        const rows = result.toArray().map(row => row.toJSON());
+        renderSchoolComparison(rows);
+        const schoolCount = new Set(rows.map(row => String(row.school_urn))).size;
+        byId("comparisonStatus").textContent = rows.length
+          ? `Comparison complete for ${schoolCount} of ${state.performance.selectedSchools.length} selected schools.`
+          : "No rows matched these school and subject filters.";
+        setStatus("KS4 comparison complete", true);
+      } catch (error) {
+        console.error("KS4 school comparison failed", error);
+        byId("comparisonStatus").textContent = "Comparison failed.";
+        byId("comparisonMeta").textContent = "The comparison query failed.";
+        showMessage(`Could not compare the selected schools: ${error.message || error}`, "error");
+        setStatus("KS4 comparison failed");
+      } finally {
+        setBusy(false);
+        updatePerformanceButtons();
+      }
+    }
+
+    function renderSchoolComparison(rows) {
+      const summary = byId("performanceSummary");
+      const head = byId("comparisonHead");
+      const body = byId("comparisonBody");
+      const columns = byId("comparisonColumns");
+      byId("exportComparison").disabled = true;
+      summary.replaceChildren();
+      head.replaceChildren();
+      body.replaceChildren();
+      columns.replaceChildren();
+      byId("comparisonNote").hidden = true;
+
+      if (!rows.length) {
+        const empty = document.createElement("div");
+        empty.className = "comparison-empty";
+        empty.textContent = "No records matched. Check that the selected schools offer this qualification and subject.";
+        summary.append(empty);
+        body.append(makeEmptyTableCell("No school results matched these filters.", 1));
+        byId("comparisonMeta").textContent = "No matching records";
+        return;
+      }
+
+      const bySchool = new Map(state.performance.selectedSchools.map(school => [school.urn, {
+        school,
+        pupilCount: null,
+        totalEntries: 0,
+        hasTotal: false,
+        hasRows: false,
+        grades: new Map()
+      }]));
+      for (const row of rows) {
+        const school = bySchool.get(String(row.school_urn));
+        if (!school) continue;
+        school.hasRows = true;
+        const pupilCount = row.reported_pupil_count === null ? null : Number(row.reported_pupil_count);
+        if (Number.isFinite(pupilCount)) school.pupilCount = Math.max(school.pupilCount ?? 0, pupilCount);
+        const count = Number(row.entry_count);
+        if (!Number.isFinite(count)) continue;
+        const grade = String(row.grade);
+        if (grade.toLocaleLowerCase() === "total exam entries") {
+          school.totalEntries += count;
+          school.hasTotal = true;
+        } else {
+          school.grades.set(grade, (school.grades.get(grade) || 0) + count);
+        }
+      }
+
+      let anyUnreportedTotal = false;
+      let gradeBucketsMismatch = false;
+      for (const item of bySchool.values()) {
+        if (!item.hasTotal) {
+          item.totalEntries = [...item.grades.values()].reduce((sum, count) => sum + count, 0);
+          if (item.grades.size) anyUnreportedTotal = true;
+        }
+        const gradeTotal = [...item.grades.values()].reduce((sum, count) => sum + count, 0);
+        if (item.hasTotal && Math.abs(gradeTotal - item.totalEntries) > 0) gradeBucketsMismatch = true;
+
+        const card = document.createElement("article");
+        card.className = "school-summary-card";
+        const title = document.createElement("h3");
+        title.textContent = item.school.name;
+        const location = document.createElement("p");
+        location.textContent = `${item.school.localAuthority} · URN ${item.school.urn}`;
+        const type = document.createElement("p");
+        type.textContent = item.school.establishmentType;
+        const pupils = document.createElement("p");
+        pupils.append(document.createTextNode("Reported pupil_count: "));
+        const pupilValue = document.createElement("strong");
+        pupilValue.textContent = item.pupilCount === null ? "Not reported" : item.pupilCount.toLocaleString();
+        pupils.append(pupilValue);
+        const entries = document.createElement("p");
+        entries.append(document.createTextNode("Total exam entries: "));
+        const entryValue = document.createElement("strong");
+        entryValue.textContent = item.hasRows ? item.totalEntries.toLocaleString() : "No result reported";
+        entries.append(entryValue);
+        card.append(title, location, type, pupils, entries);
+        summary.append(card);
+      }
+
+      const gradeLabels = [...new Set([...bySchool.values()].flatMap(item => [...item.grades.keys()]))]
+        .sort(compareGradeLabels);
+      const columnDefinitions = [
+        { key: "grade", label: "Reported grade index", lines: ["Reported", "grade", "index"], width: 90 },
+        ...[...bySchool.values()].map(item => ({
+          key: `school:${item.school.urn}`,
+          label: item.school.name,
+          lines: [item.school.name, "Entries", "(% of total)"],
+          width: 130
+        }))
+      ];
+      for (const definition of columnDefinitions) {
+        const col = document.createElement("col");
+        col.style.width = `${state.performance.comparisonColumnWidths.get(definition.key) || definition.width}px`;
+        columns.append(col);
+      }
+      const headerRow = document.createElement("tr");
+      const gradeHeader = document.createElement("th");
+      gradeHeader.scope = "col";
+      gradeHeader.append(createComparisonColumnLabel(columnDefinitions[0]));
+      gradeHeader.append(createComparisonResizeHandle(columnDefinitions[0], 0));
+      headerRow.append(gradeHeader);
+      for (const [index, item] of [...bySchool.values()].entries()) {
+        const th = document.createElement("th");
+        th.scope = "col";
+        const definition = columnDefinitions[index + 1];
+        th.append(createComparisonColumnLabel(definition));
+        th.title = `${item.school.name}, URN ${item.school.urn}`;
+        th.append(createComparisonResizeHandle(definition, index + 1));
+        headerRow.append(th);
+      }
+      head.append(headerRow);
+
+      for (const grade of gradeLabels) {
+        const row = document.createElement("tr");
+        const gradeCell = document.createElement("th");
+        gradeCell.scope = "row";
+        gradeCell.textContent = grade;
+        row.append(gradeCell);
+        for (const item of bySchool.values()) {
+          const cell = document.createElement("td");
+          if (!item.grades.has(grade)) {
+            cell.textContent = "—";
+          } else {
+            const count = item.grades.get(grade);
+            const percent = item.totalEntries > 0 ? ` (${(count / item.totalEntries * 100).toFixed(1)}%)` : "";
+            cell.textContent = `${count.toLocaleString()}${percent}`;
+          }
+          row.append(cell);
+        }
+        body.append(row);
+      }
+      if (!gradeLabels.length) body.append(makeEmptyTableCell("No grade rows were reported.", bySchool.size + 1));
+
+      const notes = [];
+      if (anyUnreportedTotal) notes.push("For any school without a reported total-entry row, the displayed total is the sum of its reported grade counts.");
+      if (gradeBucketsMismatch) notes.push("Some grade buckets do not add exactly to the reported total entries; percentages use the source total and may not sum to 100%.");
+      byId("comparisonNote").textContent = notes.join(" ");
+      byId("comparisonNote").hidden = notes.length === 0;
+
+      const groupLabel = byId("subjectGroup").value ? ` · ${byId("subjectGroup").value}` : "";
+      byId("comparisonMeta").textContent = `${byId("qualificationType").value} · ${byId("qualificationDetail").value} · ${byId("performanceSubject").value}${groupLabel} · ${bySchool.size} selected schools`;
+      byId("exportComparison").disabled = false;
+    }
+
+    async function exportComparisonToExcel() {
+      const button = byId("exportComparison");
+      if (button.disabled) return;
+      button.disabled = true;
+      button.textContent = "Preparing Excel file…";
+      try {
+        if (!state.performance.xlsx) {
+          const xlsxModule = await import(XLSX_MODULE_URL);
+          state.performance.xlsx = xlsxModule.default || xlsxModule;
+        }
+        const xlsx = state.performance.xlsx;
+        if (!xlsx.utils?.aoa_to_sheet || !xlsx.utils?.book_new || !xlsx.writeFile) {
+          throw new Error("The Excel export library did not provide the required workbook functions.");
+        }
+
+        const table = byId("comparisonHead");
+        const header = Array.from(table.rows[0].cells, cell =>
+          Array.from(cell.querySelector(".comparison-column-label").children, line => line.textContent.trim()).join(" ")
+        );
+        const rows = Array.from(byId("comparisonBody").rows, row =>
+          Array.from(row.cells, cell => cell.textContent.trim())
+        );
+        const worksheet = xlsx.utils.aoa_to_sheet([header, ...rows]);
+        worksheet["!cols"] = Array.from(byId("comparisonColumns").children, column => ({
+          wch: Math.max(9, Math.round(Number.parseFloat(column.style.width) / 7))
+        }));
+        const workbook = xlsx.utils.book_new();
+        xlsx.utils.book_append_sheet(workbook, worksheet, "KS4 Comparison");
+        const date = new Date().toISOString().slice(0, 10);
+        xlsx.writeFile(workbook, `KS4-school-comparison-${date}.xlsx`);
+      } catch (error) {
+        console.error("Could not export the KS4 comparison to Excel", error);
+        showMessage(`Could not export the comparison to Excel: ${error.message || error}`, "error");
+      } finally {
+        button.disabled = false;
+        button.textContent = "Export to Excel";
+      }
+    }
+
+    function createComparisonColumnLabel(definition) {
+      const label = document.createElement("span");
+      label.className = "comparison-column-label";
+      for (const [index, text] of definition.lines.entries()) {
+        const line = document.createElement("span");
+        if (definition.key !== "grade" && index === 0) line.className = "comparison-school-name";
+        line.textContent = text;
+        label.append(line);
+      }
+      return label;
+    }
+
+    function createComparisonResizeHandle(definition, columnIndex) {
+      const handle = document.createElement("button");
+      handle.className = "comparison-resize-handle";
+      handle.type = "button";
+      handle.setAttribute("role", "separator");
+      handle.setAttribute("aria-orientation", "vertical");
+      handle.setAttribute("aria-label", `Resize ${definition.label} column`);
+      handle.setAttribute("aria-valuemin", definition.key === "grade" ? "65" : "75");
+      handle.setAttribute("aria-valuemax", "720");
+      handle.title = "Drag to resize; use left and right arrow keys";
+
+      const column = byId("comparisonColumns").children[columnIndex];
+      const minimum = Number(handle.getAttribute("aria-valuemin"));
+      const resizeTo = width => {
+        const newWidth = Math.max(minimum, Math.min(720, width));
+        state.performance.comparisonColumnWidths.set(definition.key, newWidth);
+        column.style.width = `${newWidth}px`;
+        handle.setAttribute("aria-valuenow", String(Math.round(newWidth)));
+      };
+      const initialWidth = Number.parseFloat(column.style.width);
+      handle.setAttribute("aria-valuenow", String(initialWidth));
+      let pointerStartX = 0;
+      let widthAtPointerStart = initialWidth;
+
+      handle.addEventListener("pointerdown", event => {
+        event.preventDefault();
+        pointerStartX = event.clientX;
+        widthAtPointerStart = Number.parseFloat(column.style.width);
+        handle.setPointerCapture(event.pointerId);
+      });
+      handle.addEventListener("pointermove", event => {
+        if (handle.hasPointerCapture(event.pointerId)) {
+          resizeTo(widthAtPointerStart + event.clientX - pointerStartX);
+        }
+      });
+      handle.addEventListener("keydown", event => {
+        if (event.key !== "ArrowLeft" && event.key !== "ArrowRight") return;
+        event.preventDefault();
+        resizeTo(Number.parseFloat(column.style.width) + (event.key === "ArrowRight" ? 10 : -10));
+      });
+      return handle;
+    }
+
+    function makeEmptyTableCell(message, columns) {
+      const row = document.createElement("tr");
+      const cell = document.createElement("td");
+      cell.className = "comparison-empty";
+      cell.colSpan = columns;
+      cell.textContent = message;
+      row.append(cell);
+      return row;
+    }
+
+    function clearComparisonResults(message) {
+      const summary = byId("performanceSummary");
+      const head = byId("comparisonHead");
+      const body = byId("comparisonBody");
+      const columns = byId("comparisonColumns");
+      summary.replaceChildren();
+      head.replaceChildren();
+      body.replaceChildren(makeEmptyTableCell(message, 1));
+      columns.replaceChildren();
+      byId("exportComparison").disabled = true;
+      byId("comparisonNote").hidden = true;
+      byId("comparisonMeta").textContent = message;
+      const empty = document.createElement("div");
+      empty.className = "comparison-empty";
+      empty.textContent = message;
+      summary.append(empty);
+    }
+
+    async function connectSources(files) {
+      setBusy(true);
+      clearMessage();
+      state.sources = [];
+      state.columnsByTable.clear();
+      state.resultRows = [];
+      renderSources();
+      byId("runQuery").disabled = true;
+      try {
+        state.performance.registered = false;
+        await createEngine();
+        const usedNames = new Set();
+        const registered = [];
+        for (let i = 0; i < files.length; i++) {
+          const source = files[i];
+          const table = tableNameFromFile(source.name, usedNames);
+          const virtualFilename = `source_${String(i + 1).padStart(4, "0")}.csv`;
+          try {
+            await registerCsvFile(virtualFilename, source);
+            const viewSql = `CREATE VIEW ${quoteIdentifier(table)} AS SELECT * FROM read_csv_auto(${quoteString(virtualFilename)}, header = true, all_varchar = true)`;
+            await state.connection.query(viewSql);
+            const schemaTable = await state.connection.query(`DESCRIBE ${quoteIdentifier(table)}`);
+            const schemaRows = schemaTable.toArray().map(row => row.toJSON());
+            const columns = schemaRows.map(row => ({
+              name: String(row.column_name),
+              type: String(row.column_type || "VARCHAR")
+            }));
+            const connected = { ...source, table, virtualFilename, columns };
+            registered.push(connected);
+            state.columnsByTable.set(table, columns);
+          } catch (error) {
+            console.error(`Could not register ${source.relativePath}`, error);
+            showMessage(`Could not load ${source.relativePath}: ${error.message || error}`, "error");
+          }
+        }
+        if (state.performance.source) {
+          try {
+            await registerPerformanceSource(state.performance.source, false);
+          } catch (error) {
+            console.error("Could not restore the KS4 comparison source", error);
+            byId("performanceFileStatus").textContent = "Exam file needs to be reconnected";
+            showMessage(`Could not restore ${PERFORMANCE_FILENAME}: ${error.message || error}`, "error");
+          }
+        }
+        state.sources = registered;
+        renderSources();
+        byId("runQuery").disabled = !registered.length;
+        byId("sourceCount").textContent = `${registered.length} of ${files.length} CSV files connected`;
+        const totalBytes = registered.reduce((sum, file) => sum + (file.size || 0), 0);
+        byId("sourceSize").textContent = formatBytes(totalBytes);
+        byId("sourceSummary").textContent = registered.length
+          ? "Click a table name to preview it. Click a column to insert it into the SQL editor."
+          : "No CSVs could be registered.";
+        if (registered.length) {
+          setStatus(`${registered.length} tables ready`, true);
+          sqlInput.value = `SELECT *\nFROM ${quoteIdentifier(registered[0].table)}\nLIMIT 100;`;
+          if (registered.some(file => file.size > 300 * 1024 * 1024)) {
+            showMessage("Large CSVs are connected by file handle and are not copied into the page up front. Queries that scan these files can still take time and need sufficient browser memory.", "info");
+          }
+        } else {
+          setStatus("No tables connected");
+        }
+      } catch (error) {
+        console.error(error);
+        setStatus("Could not start SQL engine");
+        showMessage(`Could not initialize the browser SQL engine. Check your internet connection (the DuckDB-Wasm engine is loaded from jsDelivr) and reload the page. Details: ${error.message || error}`, "error");
+      } finally {
+        setBusy(false);
+      }
+    }
+
+    function renderSources() {
+      const list = byId("sourceList");
+      list.replaceChildren();
+      if (!state.sources.length) {
+        const empty = document.createElement("div");
+        empty.className = "source-empty";
+        empty.textContent = "Your CSVs will appear here as SQL tables.";
+        list.append(empty);
+        return;
+      }
+      for (const source of state.sources) {
+        const item = document.createElement("div");
+        item.className = "source-item";
+        const top = document.createElement("div");
+        top.className = "source-top";
+        const toggle = document.createElement("button");
+        toggle.className = "source-toggle";
+        toggle.type = "button";
+        toggle.title = `Preview ${source.table}`;
+        const name = document.createElement("span");
+        name.className = "source-name";
+        name.textContent = source.name;
+        const meta = document.createElement("span");
+        meta.className = "source-meta";
+        meta.textContent = `${source.columns.length} columns · ${formatBytes(source.size)} · ${source.relativePath}`;
+        toggle.append(name, meta);
+        toggle.addEventListener("click", () => {
+          sqlInput.value = `SELECT *\nFROM ${quoteIdentifier(source.table)}\nLIMIT 100;`;
+          sqlInput.focus();
+        });
+        const insert = document.createElement("button");
+        insert.className = "insert-name";
+        insert.type = "button";
+        insert.textContent = source.table;
+        insert.title = "Insert table name";
+        insert.addEventListener("click", () => insertAtCursor(quoteIdentifier(source.table)));
+        top.append(toggle, insert);
+        const columns = document.createElement("div");
+        columns.className = "columns";
+        for (const column of source.columns) {
+          const chip = document.createElement("button");
+          chip.type = "button";
+          chip.className = "column-chip";
+          chip.textContent = `${column.name} · ${column.type}`;
+          chip.title = "Insert column identifier";
+          chip.addEventListener("click", () => insertAtCursor(quoteIdentifier(column.name)));
+          columns.append(chip);
+        }
+        item.append(top, columns);
+        list.append(item);
+      }
+    }
+
+    function insertAtCursor(text) {
+      const start = sqlInput.selectionStart ?? sqlInput.value.length;
+      const end = sqlInput.selectionEnd ?? start;
+      sqlInput.setRangeText(text, start, end, "end");
+      sqlInput.focus();
+    }
+
+    function setBusy(value) {
+      state.busy = value;
+      document.querySelector("main").classList.toggle("busy", value);
+      byId("compareSchools").disabled = value || !canCompareSchools();
+      byId("addSchool").disabled = value || !canAddSchool();
+      updateChartButtons();
+      if (value) setStatus("Working…");
+    }
+
+    function validateQuery(sql) {
+      const query = sql.trim().replace(/;+\s*$/, "");
+      if (!query) throw new Error("Enter a SELECT query first.");
+      const withoutLiteralsAndComments = query
+        .replace(/'(?:''|[^'])*'/g, "''")
+        .replace(/"(?:\"\"|[^"])*"/g, '""')
+        .replace(/--.*$/gm, " ")
+        .replace(/\/\*[\s\S]*?\*\//g, " ");
+      if (withoutLiteralsAndComments.includes(";")) throw new Error("Run one SQL statement at a time.");
+      if (!/^(SELECT|WITH)\b/i.test(withoutLiteralsAndComments.trim())) {
+        throw new Error("Only read-only SELECT queries and SELECT-based CTEs are allowed.");
+      }
+      if (/\b(INSERT|UPDATE|DELETE|CREATE|DROP|ALTER|COPY|ATTACH|DETACH|INSTALL|LOAD|EXPORT|IMPORT|CALL)\b/i.test(withoutLiteralsAndComments)) {
+        throw new Error("This workbench only permits read-only SELECT queries.");
+      }
+      return query;
+    }
+
+    async function runQuery() {
+      if (!state.connection || state.busy) return;
+      clearMessage();
+      let query;
+      try {
+        query = validateQuery(sqlInput.value);
+      } catch (error) {
+        showMessage(error.message, "error");
+        return;
+      }
+      const rowCap = Number(byId("rowCap").value);
+      setBusy(true);
+      const started = performance.now();
+      try {
+        const wrapped = `SELECT * FROM (${query}) AS query_result LIMIT ${rowCap}`;
+        const result = await state.connection.query(wrapped);
+        state.resultColumns = result.schema.fields.map(field => field.name);
+        state.resultRows = result.toArray().map(row => {
+          const json = row.toJSON();
+          return state.resultColumns.map(column => json[column]);
+        });
+        state.page = 1;
+        renderResults();
+        const elapsed = ((performance.now() - started) / 1000).toFixed(2);
+        const capped = state.resultRows.length === rowCap;
+        byId("resultMeta").textContent = `${state.resultRows.length.toLocaleString()} row${state.resultRows.length === 1 ? "" : "s"}${capped ? ` (maximum ${rowCap.toLocaleString()} reached)` : ""} · ${elapsed}s`;
+        byId("exportResults").disabled = !state.resultColumns.length;
+        byId("pageMeta").textContent = state.resultRows.length ? `${state.resultColumns.length} columns · download contains the rows returned here` : "Query returned no rows.";
+        setStatus("Query complete", true);
+      } catch (error) {
+        console.error(error);
+        byId("resultMeta").textContent = "Query failed";
+        showMessage(error.message || String(error), "error");
+        setStatus("Query failed");
+      } finally {
+        setBusy(false);
+      }
+    }
+
+    function formatCell(value) {
+      if (value === null || value === undefined) return "NULL";
+      if (typeof value === "bigint") return value.toString();
+      if (value instanceof Date) return value.toISOString();
+      if (typeof value === "object") return JSON.stringify(value);
+      return String(value);
+    }
+
+    function renderResults() {
+      const head = byId("resultHead");
+      const body = byId("resultBody");
+      head.replaceChildren();
+      body.replaceChildren();
+      if (!state.resultColumns.length) {
+        const row = document.createElement("tr");
+        const cell = document.createElement("td");
+        cell.className = "result-empty";
+        cell.textContent = "No result columns.";
+        row.append(cell);
+        body.append(row);
+        byId("pagination").hidden = true;
+        return;
+      }
+      const headerRow = document.createElement("tr");
+      for (const column of state.resultColumns) {
+        const th = document.createElement("th");
+        th.textContent = column;
+        headerRow.append(th);
+      }
+      head.append(headerRow);
+      if (!state.resultRows.length) {
+        const row = document.createElement("tr");
+        const cell = document.createElement("td");
+        cell.className = "result-empty";
+        cell.colSpan = state.resultColumns.length;
+        cell.textContent = "No rows matched this query.";
+        row.append(cell);
+        body.append(row);
+      } else {
+        const start = (state.page - 1) * state.pageSize;
+        const pageRows = state.resultRows.slice(start, start + state.pageSize);
+        for (const values of pageRows) {
+          const row = document.createElement("tr");
+          for (const value of values) {
+            const cell = document.createElement("td");
+            cell.textContent = formatCell(value);
+            row.append(cell);
+          }
+          body.append(row);
+        }
+      }
+      const pages = Math.max(1, Math.ceil(state.resultRows.length / state.pageSize));
+      byId("pagination").hidden = pages <= 1;
+      byId("prevPage").disabled = state.page <= 1;
+      byId("nextPage").disabled = state.page >= pages;
+      byId("pageMeta").textContent = state.resultRows.length
+        ? `Page ${state.page} of ${pages} · ${state.resultColumns.length} columns · ${state.resultRows.length.toLocaleString()} rows returned`
+        : "Query returned no rows.";
+    }
+
+    function exportResults() {
+      if (!state.resultColumns.length) return;
+      const quoteCsv = value => {
+        const text = formatCell(value);
+        return /[",\r\n]/.test(text) ? `"${text.replaceAll('"', '""')}"` : text;
+      };
+      const csv = [
+        state.resultColumns.map(quoteCsv).join(","),
+        ...state.resultRows.map(row => row.map(quoteCsv).join(","))
+      ].join("\r\n");
+      const url = URL.createObjectURL(new Blob(["\ufeff", csv], { type: "text/csv;charset=utf-8" }));
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = "dfe-query-results.csv";
+      link.click();
+      setTimeout(() => URL.revokeObjectURL(url), 1000);
+    }
+
+    function loadExample(key) {
+      if (!state.sources.length) {
+        showMessage("Connect the CSV folder before loading an example query.");
+        byId("exampleSelect").value = "";
+        return;
+      }
+      const tables = new Set(state.sources.map(source => source.table));
+      const templates = {
+        preview: `SELECT *\nFROM ${quoteIdentifier(state.sources[0].table)}\nLIMIT 100;`,
+        group: tables.has("spc_pupils_age_and_sex")
+          ? `SELECT time_period, la_name, phase_type_grouping, sex,\n       SUM(TRY_CAST(headcount AS BIGINT)) AS pupils\nFROM spc_pupils_age_and_sex\nWHERE age = 'Total' AND sex IN ('Male', 'Female')\nGROUP BY time_period, la_name, phase_type_grouping, sex\nORDER BY time_period DESC, pupils DESC\nLIMIT 200;`
+          : `SELECT time_period, geographic_level, COUNT(*) AS records\nFROM ${quoteIdentifier(state.sources[0].table)}\nGROUP BY time_period, geographic_level\nORDER BY time_period DESC\nLIMIT 200;`,
+        fsm: tables.has("spc_fsm_api")
+          ? `SELECT time_period, geographic_level, region_name, la_name,\n       phase_type_grouping, fsm_eligibility, fsm_breakdown,\n       TRY_CAST(pupil_count AS BIGINT) AS pupil_count,\n       TRY_CAST(pupil_percent AS DOUBLE) AS pupil_percent\n          FROM spc_fsm_api\nWHERE fsm_eligibility = 'FSM eligible'\n  AND fsm_breakdown = 'All pupils'\nORDER BY time_period DESC, pupil_percent DESC\nLIMIT 200;`
+          : `SELECT * FROM ${quoteIdentifier(state.sources[0].table)} LIMIT 100;`,
+        join: tables.has("spc_pupils_ethnicity_and_language") && tables.has("spc_pupils_age_and_sex")
+          ? `WITH ethnicity_total AS (\n  SELECT time_period, new_la_code, phase_type_grouping,\n         MAX(TRY_CAST(headcount AS BIGINT)) AS ethnicity_file_total\n  FROM spc_pupils_ethnicity_and_language\n  WHERE ethnicity_minor = 'Total' AND language = 'Total'\n  GROUP BY time_period, new_la_code, phase_type_grouping\n), age_total AS (\n  SELECT time_period, new_la_code, phase_type_grouping,\n         MAX(TRY_CAST(headcount AS BIGINT)) AS age_file_total\n  FROM spc_pupils_age_and_sex\n  WHERE sex = 'Total' AND age = 'Total'\n  GROUP BY time_period, new_la_code, phase_type_grouping\n)\nSELECT COALESCE(e.time_period, a.time_period) AS time_period,\n       COALESCE(e.new_la_code, a.new_la_code) AS new_la_code,\n       COALESCE(e.phase_type_grouping, a.phase_type_grouping) AS phase,\n       e.ethnicity_file_total, a.age_file_total\nFROM ethnicity_total e\nFULL OUTER JOIN age_total a\n  ON e.time_period = a.time_period\n AND e.new_la_code = a.new_la_code\n AND e.phase_type_grouping = a.phase_type_grouping\nORDER BY time_period DESC, new_la_code\nLIMIT 500;`
+          : `-- Join two tables on shared keys after aligning each source to one row per key.\n-- Replace table/column names using the Source tables panel.\nSELECT * FROM ${quoteIdentifier(state.sources[0].table)} LIMIT 100;`,
+        movement: tables.has("spc_cbm")
+          ? `SELECT time_period, la_name, phase_type_grouping, ncyear,\n       TRY_CAST(resident_headcount AS BIGINT) AS resident_headcount,\n       TRY_CAST(school_in_la AS BIGINT) AS school_in_la,\n       TRY_CAST(school_outside_la AS BIGINT) AS school_outside_la\nFROM spc_cbm\nWHERE ncyear = 'Total'\nORDER BY time_period DESC, resident_headcount DESC\nLIMIT 200;`
+          : `SELECT * FROM ${quoteIdentifier(state.sources[0].table)} LIMIT 100;`
+      };
+      sqlInput.value = templates[key] || "";
+      byId("exampleSelect").value = "";
+      sqlInput.focus();
+    }
+
+    byId("exportComparison").addEventListener("click", exportComparisonToExcel);
+    byId("qualificationType").addEventListener("change", () => updatePerformanceFilters("type"));
+    byId("qualificationDetail").addEventListener("change", () => updatePerformanceFilters("detail"));
+    byId("performanceSubject").addEventListener("change", () => updatePerformanceFilters("subject"));
+    byId("subjectGroup").addEventListener("change", () => {
+      clearComparisonResults("Filters changed; run a new comparison.");
+      clearChartResults("Filters changed; reload chart grades.");
+      byId("comparisonStatus").textContent = "Filters changed; run a new comparison.";
+      updatePerformanceButtons();
+    });
+    byId("schoolSearch").addEventListener("input", renderSchoolMatches);
+    byId("schoolMatches").addEventListener("change", updatePerformanceButtons);
+    byId("addSchool").addEventListener("click", addSelectedSchool);
+    byId("compareSchools").addEventListener("click", compareSelectedSchools);
+    byId("loadChartData").addEventListener("click", loadChartGrades);
+    byId("chartSubjectChoices").addEventListener("change", event => {
+      if (event.target.type !== "checkbox") return;
+      state.performance.chartSubjects = [...byId("chartSubjectChoices").querySelectorAll('input[type="checkbox"]:checked')]
+        .map(checkbox => checkbox.value);
+      clearChartResults("Subject selection changed; reload chart grades.");
+      renderChartSubjects();
+      byId("chartStatus").textContent = `${state.performance.chartSubjects.length} of ${MAX_CHART_SUBJECTS} chart subjects selected.`;
+      updateChartButtons();
+    });
+    byId("chartGradeChoices").addEventListener("change", updateChartButtons);
+    byId("chartBandName").addEventListener("input", updateChartButtons);
+    byId("addChartBand").addEventListener("click", addChartBand);
+    loadDefaultPerformanceSource();
+  </script>
+</body>
+</html>
