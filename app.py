@@ -4,6 +4,7 @@ from pathlib import Path
 from typing import Any
 
 import pandas as pd
+import altair as alt
 import matplotlib.pyplot as plt
 import streamlit as st
 from matplotlib.figure import Figure
@@ -52,12 +53,12 @@ GRADE_RANKS = {
     "x": 91,
 }
 SUBJECT_COLORS = (
-    "#0072B2",
-    "#D55E00",
-    "#009E73",
-    "#CC79A7",
-    "#E69F00",
-    "#56B4E9",
+    "#0057B8",
+    "#D62828",
+    "#008A5B",
+    "#7B2CBF",
+    "#E07A00",
+    "#007C91",
 )
 BAND_HATCHES = ("", "..", "//", "xx", "\\\\")
 BAND_PATTERN_NAMES = ("solid", "dotted", "striped", "crosshatched", "diagonal")
@@ -312,7 +313,7 @@ def make_grade_band_figure(
     axis.set_ylim(0, 100)
     axis.set_yticks(range(0, 100, 10))
     axis.set_title("Grade-band distribution by school and subject")
-    axis.grid(axis="y", color="#d8e1e7", linewidth=0.8)
+    axis.grid(axis="y", color="#010a10", linewidth=0.9)
     axis.set_axisbelow(True)
 
     subject_legend = [
@@ -331,14 +332,98 @@ def make_grade_band_figure(
     legend = axis.legend(
         handles=[*subject_legend, *band_legend],
         loc="upper left",
-        bbox_to_anchor=(0.10, 0.95),
+        bbox_to_anchor=(0.05, 0.95),
         borderaxespad=0,
         frameon=True,
         ncol=min(3, len(subject_legend) or 1),
     )
     axis.add_artist(legend)
-    figure.tight_layout(rect=(0, 0, 0.78, 1))
+    figure.tight_layout(rect=(0, 0, 0.75, 1))
     return figure
+
+
+def make_grade_band_chart(
+    chart_data: pd.DataFrame,
+    selected_schools: pd.DataFrame,
+    chart_subjects: list[str],
+    bands: list[dict[str, Any]],
+) -> alt.Chart:
+    school_labels = selected_schools.set_index("school_urn").apply(
+        lambda school: f"{school['school_name']} — {school['la_name']}", axis=1
+    ).to_dict()
+    plot_data = chart_data.copy()
+    plot_data["school"] = plot_data["school_urn"].map(school_labels)
+    band_order = [band["label"] for band in bands]
+    plot_data["band"] = pd.Categorical(plot_data["band"], categories=band_order, ordered=True)
+    band_ranks = {label: index for index, label in enumerate(band_order)}
+    plot_data["band_order"] = plot_data["band"].map(band_ranks).astype("int64")
+    plot_data["entries"] = plot_data["entries"].round().astype("int64")
+    plot_data["total_entries"] = plot_data["total_entries"].round().astype("int64")
+    plot_data["percentage"] = plot_data["percentage"].fillna(0).round(1)
+    plot_data = plot_data.sort_values(["school_urn", "subject", "band_order"])
+    plot_data["band_end"] = plot_data.groupby(
+        ["school_urn", "subject"], observed=True
+    )["percentage"].cumsum()
+    plot_data["band_start"] = plot_data["band_end"] - plot_data["percentage"]
+
+    return (
+        alt.Chart(plot_data)
+        .mark_bar(cornerRadius=1)
+        .encode(
+            x=alt.X("school:N", title=None, sort=list(school_labels.values()),
+                    axis=alt.Axis(labelAngle=0, labelFontSize=10, labelLimit=150)),
+            xOffset=alt.XOffset("subject:N", sort=chart_subjects),
+            y=alt.Y("band_end:Q", title="Share of total exam entries (%)",
+                    scale=alt.Scale(domain=[0, 100]), axis=alt.Axis(labelFontSize=10)),
+            y2=alt.Y2("band_start:Q"),
+            color=alt.Color(
+                "subject:N",
+                title="Subject",
+                sort=chart_subjects,
+                scale=alt.Scale(
+                    domain=chart_subjects,
+                    range=[SUBJECT_COLORS[index % len(SUBJECT_COLORS)]
+                           for index in range(len(chart_subjects))],
+                ),
+            ),
+            opacity=alt.Opacity(
+                "band:N",
+                title="Rating group",
+                sort=band_order,
+                scale=alt.Scale(
+                    domain=band_order,
+                    range=[1.0, *([0.58] * max(0, len(band_order) - 1))],
+                ),
+            ),
+            tooltip=[
+                alt.Tooltip("school:N", title="School"),
+                alt.Tooltip("subject:N", title="Subject"),
+                alt.Tooltip("band:N", title="Rating group"),
+                alt.Tooltip("grades:N", title="Grades included"),
+                alt.Tooltip("percentage:Q", title="Share", format=".1f"),
+                alt.Tooltip("entries:Q", title="Entries in group", format=","),
+                alt.Tooltip("total_entries:Q", title="Total exam entries", format=","),
+            ],
+        )
+        .properties(
+            height=360,
+            title="Grade-band distribution by school and subject",
+        )
+        .configure_view(stroke=None)
+        .configure_axis(gridColor="#d8e1e7")
+        .configure_legend(
+            labelFontSize=13,
+            titleFontSize=14,
+            titleFontWeight="bold",
+            symbolSize=190,
+            symbolStrokeWidth=0,
+            padding=12,
+            rowPadding=8,
+            columnPadding=20,
+            labelLimit=220,
+        )
+        .interactive()
+    )
 
 
 def main() -> None:
@@ -558,11 +643,10 @@ def main() -> None:
         if chart_data.empty or chart_data["total_entries"].le(0).all():
             st.info("No results were found for the selected chart subjects and rating groups.")
         else:
-            figure = make_grade_band_figure(
+            chart = make_grade_band_chart(
                 chart_data, selected_schools, chart_subjects, chart_bands
             )
-            st.pyplot(figure, use_container_width=True)
-            plt.close(figure)
+            st.altair_chart(chart, use_container_width=True)
             chart_table = chart_data.merge(
                 selected_schools[["school_urn", "school_name", "la_name"]],
                 on="school_urn",
